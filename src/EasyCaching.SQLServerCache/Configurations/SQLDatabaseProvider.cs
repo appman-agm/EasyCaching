@@ -23,14 +23,9 @@ namespace EasyCaching.SQLServer.Configurations
             this._options = options.DBConfig;
         }
 
-        /// <summary>
-        /// The conn.
-        /// </summary>
-        private static IDbConnection _conn;
-
         public IDbConnection GetConnection()
         {
-            return _conn ?? (_conn = new SqlConnection(_options.ConnectionString));
+            return new SqlConnection(_options.ConnectionString);
         }
 
         private readonly string _name = EasyCachingConstValue.DefaultSQLServerName;

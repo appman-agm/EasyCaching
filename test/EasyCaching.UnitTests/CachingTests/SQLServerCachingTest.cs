@@ -18,7 +18,7 @@ namespace EasyCaching.UnitTests
     {
         private readonly ISQLDatabaseProvider _dbProvider;
 
-        private const string CONNECTION_STRING = "Data Source=.\\sqlexpress;Initial Catalog=EasyCacheDB;Integrated Security=True;MultipleActiveResultSets=True";
+        private const string CONNECTION_STRING = "Data Source=.\\sqlexpress;Initial Catalog=EasyCacheDB;Integrated Security=True;";
         private const string SCHEMA_NAME = "Easy";
         private const string TABLE_NAME = "Cache";
 
@@ -105,7 +105,7 @@ namespace EasyCaching.UnitTests
 
     public class SQLServerCachingProviderWithFactoryTest : BaseCachingProviderWithFactoryTest
     {
-        private const string CONNECTION_STRING = "Data Source=.\\sqlexpress;Initial Catalog=EasyCacheDB;Integrated Security=True;MultipleActiveResultSets=True";
+        private const string CONNECTION_STRING = "Data Source=.\\sqlexpress;Initial Catalog=EasyCacheDB;Integrated Security=True;";
         private const string SCHEMA_NAME = "Easy";
         private const string TABLE_NAME = "Cache";
 
@@ -159,7 +159,7 @@ namespace EasyCaching.UnitTests
         private readonly IEasyCachingProvider _secondProvider;
         private const string SECOND_PROVIDER_NAME = "second";
 
-        private const string CONNECTION_STRING = "Data Source=.\\sqlexpress;Initial Catalog=EasyCacheDB;Integrated Security=True;MultipleActiveResultSets=True";
+        private const string CONNECTION_STRING = "Data Source=.\\sqlexpress;Initial Catalog=EasyCacheDB;Integrated Security=True;";
         private const string SCHEMA_NAME = "Easy";
         private const string TABLE_NAME = "Cache";
 
@@ -254,7 +254,7 @@ namespace EasyCaching.UnitTests
             'MaxRdSecond': 600,
             'Order': 99,
             'dbconfig': {            
-                'connectionString':'Data Source=.\\sqlexpress;Initial Catalog=EasyCacheDB;Integrated Security=True;MultipleActiveResultSets=True',
+                'connectionString':'Data Source=.\\sqlexpress;Initial Catalog=EasyCacheDB;Integrated Security=True;',
                 'schemaName':'Easy',
                 'tableName':'Cache'
             }

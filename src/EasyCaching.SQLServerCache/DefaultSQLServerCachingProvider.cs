@@ -32,11 +32,6 @@ namespace EasyCaching.SQLServer
         private readonly ILogger _logger;
 
         /// <summary>
-        /// The cache.
-        /// </summary>
-        private readonly IDbConnection _cache;
-
-        /// <summary>
         /// The cache stats.
         /// </summary>
         private readonly CacheStats _cacheStats;
@@ -62,7 +57,6 @@ namespace EasyCaching.SQLServer
             this._dbProvider = dbProvider;
             this._options = options.CurrentValue;
             this._logger = loggerFactory?.CreateLogger<DefaultSQLServerCachingProvider>();
-            this._cache = _dbProvider.GetConnection();
             this._cacheStats = new CacheStats();
             this._name = EasyCachingConstValue.DefaultSQLServerName;
             _lastScanTime = SystemClock.UtcNow;
@@ -77,7 +71,6 @@ namespace EasyCaching.SQLServer
             this._dbProvider = dbProviders.FirstOrDefault(x => x.DBProviderName.Equals(name));
             this._options = options;
             this._logger = loggerFactory?.CreateLogger<DefaultSQLServerCachingProvider>();
-            this._cache = _dbProvider.GetConnection();
             this._cacheStats = new CacheStats();
             this._name = name;
             _lastScanTime = SystemClock.UtcNow;
@@ -129,14 +122,16 @@ namespace EasyCaching.SQLServer
         public bool Exists(string cacheKey)
         {
             ArgumentCheck.NotNullOrWhiteSpace(cacheKey, nameof(cacheKey));
-            
-            var dbResult = _cache.ExecuteScalar<int>(GetSQL(ConstSQL.EXISTSSQL), new
+            using (var connection = _dbProvider.GetConnection())
             {
-                cachekey = cacheKey,
-                name = _name
-            });
+                var dbResult = connection.ExecuteScalar<int>(GetSQL(ConstSQL.EXISTSSQL), new
+                {
+                    cachekey = cacheKey,
+                    name = _name
+                });
 
-            return dbResult == 1;
+                return dbResult == 1;
+            }
         }
 
         /// <summary>
@@ -148,13 +143,16 @@ namespace EasyCaching.SQLServer
         {
             ArgumentCheck.NotNullOrWhiteSpace(cacheKey, nameof(cacheKey));
 
-            var dbResult = await _cache.ExecuteScalarAsync<int>(GetSQL(ConstSQL.EXISTSSQL), new
+            using (var connection = _dbProvider.GetConnection())
             {
-                cachekey = cacheKey,
-                name = _name
-            });
+                var dbResult = await connection.ExecuteScalarAsync<int>(GetSQL(ConstSQL.EXISTSSQL), new
+                {
+                    cachekey = cacheKey,
+                    name = _name
+                });
 
-            return dbResult == 1;
+                return dbResult == 1;
+            }
         }
 
         /// <summary>
@@ -170,20 +168,24 @@ namespace EasyCaching.SQLServer
             ArgumentCheck.NotNullOrWhiteSpace(cacheKey, nameof(cacheKey));
             ArgumentCheck.NotNegativeOrZero(expiration, nameof(expiration));
 
-            var dbResult = _cache.Query<string>(GetSQL(ConstSQL.GETSQL), new
+            using (var connection = _dbProvider.GetConnection())
             {
-                cachekey = cacheKey,
-                name = _name
-            }).FirstOrDefault();
+                var dbResult = connection.Query<string>(GetSQL(ConstSQL.GETSQL), new
+                {
+                    cachekey = cacheKey,
+                    name = _name
+                }).ToList().FirstOrDefault();
 
-            if (!string.IsNullOrWhiteSpace(dbResult))
-            {
-                if (_options.EnableLogging)
-                    _logger?.LogInformation($"Cache Hit : cachekey = {cacheKey}");
+                if (!string.IsNullOrWhiteSpace(dbResult))
+                {
+                    if (_options.EnableLogging)
+                        _logger?.LogInformation($"Cache Hit : cachekey = {cacheKey}");
 
-                CacheStats.OnHit();
+                    CacheStats.OnHit();
 
-                return new CacheValue<T>(Newtonsoft.Json.JsonConvert.DeserializeObject<T>(dbResult), true);
+                    return new CacheValue<T>(Newtonsoft.Json.JsonConvert.DeserializeObject<T>(dbResult), true);
+                }
+
             }
 
             CacheStats.OnMiss();
@@ -217,22 +219,25 @@ namespace EasyCaching.SQLServer
             ArgumentCheck.NotNullOrWhiteSpace(cacheKey, nameof(cacheKey));
             ArgumentCheck.NotNegativeOrZero(expiration, nameof(expiration));
 
-            var list = await _cache.QueryAsync<string>(GetSQL(ConstSQL.GETSQL), new
+            using (var connection = _dbProvider.GetConnection())
             {
-                cachekey = cacheKey,
-                name = _name
-            });
+                var list = (await connection.QueryAsync<string>(GetSQL(ConstSQL.GETSQL), new
+                {
+                    cachekey = cacheKey,
+                    name = _name
+                })).ToList();
 
-            var dbResult = list.FirstOrDefault();
+                var dbResult = list.FirstOrDefault();
 
-            if (!string.IsNullOrWhiteSpace(dbResult))
-            {
-                if (_options.EnableLogging)
-                    _logger?.LogInformation($"Cache Hit : cachekey = {cacheKey}");
+                if (!string.IsNullOrWhiteSpace(dbResult))
+                {
+                    if (_options.EnableLogging)
+                        _logger?.LogInformation($"Cache Hit : cachekey = {cacheKey}");
 
-                CacheStats.OnHit();
+                    CacheStats.OnHit();
 
-                return new CacheValue<T>(Newtonsoft.Json.JsonConvert.DeserializeObject<T>(dbResult), true);
+                    return new CacheValue<T>(Newtonsoft.Json.JsonConvert.DeserializeObject<T>(dbResult), true);
+                }
             }
 
             CacheStats.OnMiss();
@@ -263,29 +268,32 @@ namespace EasyCaching.SQLServer
         {
             ArgumentCheck.NotNullOrWhiteSpace(cacheKey, nameof(cacheKey));
 
-            var dbResult = _cache.Query<string>(GetSQL(ConstSQL.GETSQL), new
+            using (var connection = _dbProvider.GetConnection())
             {
-                cachekey = cacheKey,
-                name = _name
-            }).FirstOrDefault();
+                var dbResult = connection.Query<string>(GetSQL(ConstSQL.GETSQL), new
+                {
+                    cachekey = cacheKey,
+                    name = _name
+                }).ToList().FirstOrDefault();
 
-            if (!string.IsNullOrWhiteSpace(dbResult))
-            {
-                CacheStats.OnHit();
+                if (!string.IsNullOrWhiteSpace(dbResult))
+                {
+                    CacheStats.OnHit();
 
-                if (_options.EnableLogging)
-                    _logger?.LogInformation($"Cache Hit : cachekey = {cacheKey}");
+                    if (_options.EnableLogging)
+                        _logger?.LogInformation($"Cache Hit : cachekey = {cacheKey}");
 
-                return new CacheValue<T>(Newtonsoft.Json.JsonConvert.DeserializeObject<T>(dbResult), true);
-            }
-            else
-            {
-                CacheStats.OnMiss();
+                    return new CacheValue<T>(Newtonsoft.Json.JsonConvert.DeserializeObject<T>(dbResult), true);
+                }
+                else
+                {
+                    CacheStats.OnMiss();
 
-                if (_options.EnableLogging)
-                    _logger?.LogInformation($"Cache Missed : cachekey = {cacheKey}");
+                    if (_options.EnableLogging)
+                        _logger?.LogInformation($"Cache Missed : cachekey = {cacheKey}");
 
-                return CacheValue<T>.NoValue;
+                    return CacheValue<T>.NoValue;
+                }
             }
         }
 
@@ -299,31 +307,34 @@ namespace EasyCaching.SQLServer
         {
             ArgumentCheck.NotNullOrWhiteSpace(cacheKey, nameof(cacheKey));
 
-            var list = await _cache.QueryAsync<string>(GetSQL(ConstSQL.GETSQL), new
+            using (var connection = _dbProvider.GetConnection())
             {
-                cachekey = cacheKey,
-                name = _name
-            });
+                var list = (await connection.QueryAsync<string>(GetSQL(ConstSQL.GETSQL), new
+                {
+                    cachekey = cacheKey,
+                    name = _name
+                })).ToList();
 
-            var dbResult = list.FirstOrDefault();
+                var dbResult = list.FirstOrDefault();
 
-            if (!string.IsNullOrWhiteSpace(dbResult))
-            {
-                CacheStats.OnHit();
+                if (!string.IsNullOrWhiteSpace(dbResult))
+                {
+                    CacheStats.OnHit();
 
-                if (_options.EnableLogging)
-                    _logger?.LogInformation($"Cache Hit : cachekey = {cacheKey}");
+                    if (_options.EnableLogging)
+                        _logger?.LogInformation($"Cache Hit : cachekey = {cacheKey}");
 
-                return new CacheValue<T>(Newtonsoft.Json.JsonConvert.DeserializeObject<T>(dbResult), true);
-            }
-            else
-            {
-                CacheStats.OnMiss();
+                    return new CacheValue<T>(Newtonsoft.Json.JsonConvert.DeserializeObject<T>(dbResult), true);
+                }
+                else
+                {
+                    CacheStats.OnMiss();
 
-                if (_options.EnableLogging)
-                    _logger?.LogInformation($"Cache Missed : cachekey = {cacheKey}");
+                    if (_options.EnableLogging)
+                        _logger?.LogInformation($"Cache Missed : cachekey = {cacheKey}");
 
-                return CacheValue<T>.NoValue;
+                    return CacheValue<T>.NoValue;
+                }
             }
         }
 
@@ -335,8 +346,10 @@ namespace EasyCaching.SQLServer
         public void Remove(string cacheKey)
         {
             ArgumentCheck.NotNullOrWhiteSpace(cacheKey, nameof(cacheKey));
-
-            _cache.Execute(GetSQL(ConstSQL.REMOVESQL), new { cachekey = cacheKey, name = _name });
+            using (var connection = _dbProvider.GetConnection())
+            {
+                connection.Execute(GetSQL(ConstSQL.REMOVESQL), new {cachekey = cacheKey, name = _name});
+            }
         }
 
         /// <summary>
@@ -347,8 +360,10 @@ namespace EasyCaching.SQLServer
         public async Task RemoveAsync(string cacheKey)
         {
             ArgumentCheck.NotNullOrWhiteSpace(cacheKey, nameof(cacheKey));
-
-            await _cache.ExecuteAsync(GetSQL(ConstSQL.REMOVESQL), new { cachekey = cacheKey, name = _name });
+            using (var connection = _dbProvider.GetConnection())
+            {
+                await connection.ExecuteAsync(GetSQL(ConstSQL.REMOVESQL), new {cachekey = cacheKey, name = _name});
+            }
         }
 
         /// <summary>
@@ -371,13 +386,17 @@ namespace EasyCaching.SQLServer
                 expiration.Add(new TimeSpan(0, 0, addSec));
             }
 
-            _cache.Execute(GetSQL(ConstSQL.SETSQL), new
+            using (var connection = _dbProvider.GetConnection())
             {
-                cachekey = cacheKey,
-                name = _name,
-                cachevalue = Newtonsoft.Json.JsonConvert.SerializeObject(cacheValue),
-                expiration = expiration.Ticks / 10000000
-            });
+                connection.Execute(GetSQL(ConstSQL.SETSQL), new
+                {
+                    cachekey = cacheKey,
+                    name = _name,
+                    cachevalue = Newtonsoft.Json.JsonConvert.SerializeObject(cacheValue),
+                    expiration = expiration.Ticks / 10000000
+                });
+            }
+
             CleanExpiredEntries();
         }
 
@@ -401,13 +420,17 @@ namespace EasyCaching.SQLServer
                 expiration.Add(new TimeSpan(0, 0, addSec));
             }
 
-            await _cache.ExecuteAsync(GetSQL(ConstSQL.SETSQL), new
+            using (var connection = _dbProvider.GetConnection())
             {
-                cachekey = cacheKey,
-                name = _name,
-                cachevalue = Newtonsoft.Json.JsonConvert.SerializeObject(cacheValue),
-                expiration = expiration.Ticks / 10000000
-            });
+                await connection.ExecuteAsync(GetSQL(ConstSQL.SETSQL), new
+                {
+                    cachekey = cacheKey,
+                    name = _name,
+                    cachevalue = Newtonsoft.Json.JsonConvert.SerializeObject(cacheValue),
+                    expiration = expiration.Ticks / 10000000
+                });
+            }
+
             CleanExpiredEntries();
         }
 
@@ -456,8 +479,11 @@ namespace EasyCaching.SQLServer
 
             if (_options.EnableLogging)
                 _logger?.LogInformation($"RemoveByPrefix : prefix = {prefix}");
-
-            _cache.Execute(GetSQL(ConstSQL.REMOVEBYPREFIXSQL), new { cachekey = string.Concat(prefix, "%"), name = _name });
+            using (var connection = _dbProvider.GetConnection())
+            {
+                connection.Execute(GetSQL(ConstSQL.REMOVEBYPREFIXSQL),
+                    new {cachekey = string.Concat(prefix, "%"), name = _name});
+            }
         }
 
         /// <summary>
@@ -470,8 +496,11 @@ namespace EasyCaching.SQLServer
 
             if (_options.EnableLogging)
                 _logger?.LogInformation($"RemoveByPrefixAsync : prefix = {prefix}");
-
-            await _cache.ExecuteAsync(GetSQL(ConstSQL.REMOVEBYPREFIXSQL), new { cachekey = string.Concat(prefix, "%"), name = _name });
+            using (var connection = _dbProvider.GetConnection())
+            {
+                await connection.ExecuteAsync(GetSQL(ConstSQL.REMOVEBYPREFIXSQL),
+                    new {cachekey = string.Concat(prefix, "%"), name = _name});
+            }
         }
 
         /// <summary>
@@ -485,20 +514,24 @@ namespace EasyCaching.SQLServer
             ArgumentCheck.NotNegativeOrZero(expiration, nameof(expiration));
             ArgumentCheck.NotNullAndCountGTZero(values, nameof(values));
 
-            var tran = _cache.BeginTransaction();
-
-            foreach (var item in values)
+            using (var connection = _dbProvider.GetConnection())
             {
-                _cache.Execute(GetSQL(ConstSQL.SETSQL), new
+                var paramList = new List<object>();
+                foreach (var item in values)
                 {
-                    cachekey = item.Key,
-                    name = _name,
-                    cachevalue = Newtonsoft.Json.JsonConvert.SerializeObject(item.Value),
-                    expiration = expiration.Ticks / 10000000
-                }, tran);
+                    paramList.Add(new
+                    {
+                        cachekey = item.Key,
+                        name = _name,
+                        cachevalue = Newtonsoft.Json.JsonConvert.SerializeObject(item.Value),
+                        expiration = expiration.Ticks / 10000000
+                    });
+                }
+
+                connection.Execute(GetSQL(ConstSQL.SETSQL), paramList);
+                
             }
 
-            tran.Commit();
             CleanExpiredEntries();
         }
 
@@ -514,23 +547,23 @@ namespace EasyCaching.SQLServer
             ArgumentCheck.NotNegativeOrZero(expiration, nameof(expiration));
             ArgumentCheck.NotNullAndCountGTZero(values, nameof(values));
 
-            var tran = _cache.BeginTransaction();
-            var tasks = new List<Task<int>>();
-
-            foreach (var item in values)
+            using (var connection = _dbProvider.GetConnection())
             {
-
-                tasks.Add(_cache.ExecuteAsync(GetSQL(ConstSQL.SETSQL), new
+                var paramList = new List<object>();
+                foreach (var item in values)
                 {
-                    cachekey = item.Key,
-                    name = _name,
-                    cachevalue = Newtonsoft.Json.JsonConvert.SerializeObject(item.Value),
-                    expiration = expiration.Ticks / 10000000
-                }, tran));
-            }
-            await Task.WhenAll(tasks);
+                    paramList.Add(new
+                    {
+                        cachekey = item.Key,
+                        name = _name,
+                        cachevalue = Newtonsoft.Json.JsonConvert.SerializeObject(item.Value),
+                        expiration = expiration.Ticks / 10000000
+                    });
+                }
 
-            tran.Commit();
+                await connection.ExecuteAsync(GetSQL(ConstSQL.SETSQL), paramList);
+            }
+
             CleanExpiredEntries();
         }
 
@@ -544,13 +577,16 @@ namespace EasyCaching.SQLServer
         {
             ArgumentCheck.NotNullAndCountGTZero(cacheKeys, nameof(cacheKeys));
 
-            var list = _cache.Query(GetSQL(ConstSQL.GETALLSQL), new
+            using (var connection = _dbProvider.GetConnection())
             {
-                cachekey = cacheKeys.ToArray(),
-                name = _name
-            }).ToList();
+                var list = connection.Query(GetSQL(ConstSQL.GETALLSQL), new
+                {
+                    cachekey = cacheKeys.ToArray(),
+                    name = _name
+                }).ToList();
 
-            return GetDict<T>(list);
+                return GetDict<T>(list);
+            }
         }
 
         /// <summary>
@@ -563,13 +599,16 @@ namespace EasyCaching.SQLServer
         {
             ArgumentCheck.NotNullAndCountGTZero(cacheKeys, nameof(cacheKeys));
 
-            var list = (await _cache.QueryAsync(GetSQL(ConstSQL.GETALLSQL), new
+            using (var connection = _dbProvider.GetConnection())
             {
-                cachekey = cacheKeys.ToArray(),
-                name = _name
-            })).ToList();
+                var list = (await connection.QueryAsync(GetSQL(ConstSQL.GETALLSQL), new
+                {
+                    cachekey = cacheKeys.ToArray(),
+                    name = _name
+                })).ToList();
 
-            return GetDict<T>(list);
+                return GetDict<T>(list);
+            }
         }
 
         /// <summary>
@@ -601,13 +640,16 @@ namespace EasyCaching.SQLServer
         {
             ArgumentCheck.NotNullOrWhiteSpace(prefix, nameof(prefix));
 
-            var list = _cache.Query(GetSQL(ConstSQL.GETBYPREFIXSQL), new
+            using (var connection = _dbProvider.GetConnection())
             {
-                cachekey = string.Concat(prefix, "%"),
-                name = _name
-            }).ToList();
+                var list = connection.Query(GetSQL(ConstSQL.GETBYPREFIXSQL), new
+                {
+                    cachekey = string.Concat(prefix, "%"),
+                    name = _name
+                }).ToList();
 
-            return GetDict<T>(list);
+                return GetDict<T>(list);
+            }
         }
 
         /// <summary>
@@ -620,13 +662,16 @@ namespace EasyCaching.SQLServer
         {
             ArgumentCheck.NotNullOrWhiteSpace(prefix, nameof(prefix));
 
-            var list = (await _cache.QueryAsync(GetSQL(ConstSQL.GETBYPREFIXSQL), new
+            using (var connection = _dbProvider.GetConnection())
             {
-                cachekey = string.Concat(prefix, "%"),
-                name = _name
-            })).ToList();
+                var list = (await connection.QueryAsync(GetSQL(ConstSQL.GETBYPREFIXSQL), new
+                {
+                    cachekey = string.Concat(prefix, "%"),
+                    name = _name
+                })).ToList();
 
-            return GetDict<T>(list);
+                return GetDict<T>(list);
+            }
         }
 
         /// <summary>
@@ -637,12 +682,15 @@ namespace EasyCaching.SQLServer
         {
             ArgumentCheck.NotNullAndCountGTZero(cacheKeys, nameof(cacheKeys));
 
-            var tran = _cache.BeginTransaction();
-
-            foreach (var item in cacheKeys)
-                _cache.Execute(GetSQL(ConstSQL.REMOVESQL), new { cachekey = item, name = _name }, tran);
-
-            tran.Commit();
+            using (var connection = _dbProvider.GetConnection())
+            {
+                var paramList = new List<object>();
+                foreach (var item in cacheKeys)
+                {
+                    paramList.Add(new { cachekey = item, name = _name });
+                }
+                connection.Execute(GetSQL(ConstSQL.REMOVESQL), paramList);
+            }
         }
 
         /// <summary>
@@ -654,14 +702,16 @@ namespace EasyCaching.SQLServer
         {
             ArgumentCheck.NotNullAndCountGTZero(cacheKeys, nameof(cacheKeys));
 
-            var tran = _cache.BeginTransaction();
-            var tasks = new List<Task<int>>();
-
-            foreach (var item in cacheKeys)
-                tasks.Add(_cache.ExecuteAsync(GetSQL(ConstSQL.REMOVESQL), new { cachekey = item, name = _name }, tran));
-
-            await Task.WhenAll(tasks);
-            tran.Commit();
+            using (var connection = _dbProvider.GetConnection())
+            {
+                var paramList = new List<object>();
+                foreach (var item in cacheKeys)
+                {
+                    paramList.Add(new { cachekey = item, name = _name });
+                }
+                await connection.ExecuteAsync(GetSQL(ConstSQL.REMOVESQL), paramList);
+                
+            }
         }
 
         /// <summary>
@@ -671,26 +721,42 @@ namespace EasyCaching.SQLServer
         /// <param name="prefix">Prefix.</param>
         public int GetCount(string prefix = "")
         {
-            if (string.IsNullOrWhiteSpace(prefix))
+            using (var connection = _dbProvider.GetConnection())
             {
-                return _cache.ExecuteScalar<int>(GetSQL(ConstSQL.COUNTALLSQL), new { name = _name });
-            }
-            else
-            {
-                return _cache.ExecuteScalar<int>(GetSQL(ConstSQL.COUNTPREFIXSQL), new { cachekey = string.Concat(prefix, "%"), name = _name });
+                if (string.IsNullOrWhiteSpace(prefix))
+                {
+                    return connection.ExecuteScalar<int>(GetSQL(ConstSQL.COUNTALLSQL), new {name = _name});
+                }
+                else
+                {
+                    return connection.ExecuteScalar<int>(GetSQL(ConstSQL.COUNTPREFIXSQL),
+                        new {cachekey = string.Concat(prefix, "%"), name = _name});
+                }
             }
         }
 
         /// <summary>
         /// Flush All Cached Item.
         /// </summary>
-        public void Flush() => _cache.Execute(GetSQL(ConstSQL.FLUSHSQL), new { name = _name });
+        public void Flush()
+        {
+            using (var connection = _dbProvider.GetConnection())
+            {
+                connection.Execute(GetSQL(ConstSQL.FLUSHSQL), new {name = _name});
+            }
+        }
 
         /// <summary>
         /// Flush All Cached Item async.
         /// </summary>
         /// <returns>The async.</returns>
-        public async Task FlushAsync() => await _cache.ExecuteAsync(GetSQL(ConstSQL.FLUSHSQL), new { name = _name });
+        public async Task FlushAsync()
+        {
+            using (var connection = _dbProvider.GetConnection())
+            {
+                await connection.ExecuteAsync(GetSQL(ConstSQL.FLUSHSQL), new {name = _name});
+            }
+        }
 
         /// <summary>
         /// Tries the set.
@@ -712,15 +778,18 @@ namespace EasyCaching.SQLServer
                 expiration.Add(new TimeSpan(0, 0, addSec));
             }
 
-            var rows = _cache.Execute(GetSQL(ConstSQL.TRYSETSQL), new
+            using (var connection = _dbProvider.GetConnection())
             {
-                cachekey = cacheKey,
-                name = _name,
-                cachevalue = Newtonsoft.Json.JsonConvert.SerializeObject(cacheValue),
-                expiration = expiration.Ticks / 10000000
-            });
+                var rows = connection.Execute(GetSQL(ConstSQL.TRYSETSQL), new
+                {
+                    cachekey = cacheKey,
+                    name = _name,
+                    cachevalue = Newtonsoft.Json.JsonConvert.SerializeObject(cacheValue),
+                    expiration = expiration.Ticks / 10000000
+                });
 
-            return rows > 0;
+                return rows > 0;
+            }
         }
 
         /// <summary>
@@ -743,15 +812,18 @@ namespace EasyCaching.SQLServer
                 expiration.Add(new TimeSpan(0, 0, addSec));
             }
 
-            var rows = await _cache.ExecuteAsync(GetSQL(ConstSQL.TRYSETSQL), new
+            using (var connection = _dbProvider.GetConnection())
             {
-                cachekey = cacheKey,
-                name = _name,
-                cachevalue = Newtonsoft.Json.JsonConvert.SerializeObject(cacheValue),
-                expiration = expiration.Ticks / 10000000
-            });
+                var rows = await connection.ExecuteAsync(GetSQL(ConstSQL.TRYSETSQL), new
+                {
+                    cachekey = cacheKey,
+                    name = _name,
+                    cachevalue = Newtonsoft.Json.JsonConvert.SerializeObject(cacheValue),
+                    expiration = expiration.Ticks / 10000000
+                });
 
-            return rows > 0;
+                return rows > 0;
+            }
         }
 
 
@@ -759,7 +831,13 @@ namespace EasyCaching.SQLServer
         {
             if (SystemClock.UtcNow > _lastScanTime.Add(_options.DBConfig.ExpirationScanFrequency))
             {
-                Task.Run(() => { _cache.Execute(GetSQL(ConstSQL.CLEANEXPIREDSQL)); });
+                Task.Run(() =>
+                {
+                    using (var connection = _dbProvider.GetConnection())
+                    {
+                        connection.Execute(GetSQL(ConstSQL.CLEANEXPIREDSQL));
+                    }
+                });
                 _lastScanTime = SystemClock.UtcNow;
             }
         }
