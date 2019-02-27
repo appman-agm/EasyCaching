@@ -1,0 +1,3 @@
+﻿nuget pack src\EasyCaching.SQLServerCache\EasyCaching.SQLServerCache.csproj -version 1.0.0 -IncludeReferencedProjects -properties Configuration=Debug
+
+nuget push EasyCaching.SQLServer.1.0.0.nupkg AppMan2004zZ -Source https://appmannuget.azurewebsites.net/nuget
